@@ -3,6 +3,7 @@ pandas==2.2.3
 numpy==2.2.6
 ydata-profiling==4.3.1
 numba==0.57.1
+visions==0.7.5
 altair==5.5.0
 blinker==1.9.0
 cachetools==5.5.2
@@ -36,4 +37,3 @@ typing-extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
 watchdog==6.0.0
-visions==0.7.5
