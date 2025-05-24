@@ -1,8 +1,8 @@
 streamlit==1.45.1
 pandas==2.2.3
-numpy==2.2.6
+numpy==1.23.5                     # Downgraded to be compatible with ydata-profiling
 ydata-profiling==4.3.1
-numba==0.57.1
+numba==0.57.1                     # This version works with numpy<=1.24
 visions==0.7.5
 altair==5.5.0
 blinker==1.9.0
