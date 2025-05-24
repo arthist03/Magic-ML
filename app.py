@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
 import pickle
 from io import BytesIO
 
@@ -21,9 +20,13 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import warnings
 warnings.filterwarnings('ignore')
 
-# Load dataset if already uploaded
-if os.path.exists('./dataset.csv'):
-    df = pd.read_csv('dataset.csv', index_col=None)
+# Initialize session state variables
+if 'df' not in st.session_state:
+    st.session_state.df = None
+if 'model_data' not in st.session_state:
+    st.session_state.model_data = None
+if 'model_trained' not in st.session_state:
+    st.session_state.model_trained = False
 
 # Sidebar with logo, title, navigation, and info
 with st.sidebar:
@@ -31,6 +34,17 @@ with st.sidebar:
     st.title("Magic ML 🚀")
     choice = st.radio("Navigation 🧭", ["Upload 📤", "Profiling 📊", "Modelling 🤖", "Download 💾"])
     st.info("This project application helps you build and explore your data. 📈✨")
+    
+    # Add a clear data button
+    if st.button("🗑️ Clear All Data"):
+        st.session_state.df = None
+        st.session_state.model_data = None
+        st.session_state.model_trained = False
+        if 'model_name' in st.session_state:
+            del st.session_state.model_name
+        if 'model_r2' in st.session_state:
+            del st.session_state.model_r2
+        st.rerun()
 
 def preprocess_data(df, target_column):
     """Preprocess the data for machine learning"""
@@ -131,17 +145,16 @@ if choice == "Upload 📤":
     st.title("Upload Your Dataset 📥")
     file = st.file_uploader("Upload Your Dataset 🗂️")
     if file:
-        df = pd.read_csv(file, index_col=None)
-        df.to_csv('dataset.csv', index=False)  # Save for later use
-        st.dataframe(df)
-        st.success(f"Dataset uploaded successfully! Shape: {df.shape}")
+        st.session_state.df = pd.read_csv(file, index_col=None)
+        st.dataframe(st.session_state.df)
+        st.success(f"Dataset uploaded successfully! Shape: {st.session_state.df.shape}")
 
 # Profiling tab: show detailed EDA report
 if choice == "Profiling 📊":
     st.title("Exploratory Data Analysis 🔍")
-    if 'df' in locals():
+    if st.session_state.df is not None:
         st.info("Generating comprehensive data profiling report...")
-        profile_df = ProfileReport(df, title="Pandas Profiling Report", explorative=True)
+        profile_df = ProfileReport(st.session_state.df, title="Pandas Profiling Report", explorative=True)
         st_profile_report(profile_df)
     else:
         st.warning("⚠️ Please upload a dataset first.")
@@ -149,24 +162,24 @@ if choice == "Profiling 📊":
 # Modelling tab: setup scikit-learn, compare models, display results
 if choice == "Modelling 🤖":
     st.title("Machine Learning Modelling 🤖")
-    if 'df' in locals():
+    if st.session_state.df is not None:
         st.subheader("Model Configuration")
-        chosen_target = st.selectbox('Choose the Target Column 🎯', df.columns)
+        chosen_target = st.selectbox('Choose the Target Column 🎯', st.session_state.df.columns)
         
         # Show basic info about the dataset
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Dataset Shape", f"{df.shape[0]} x {df.shape[1]}")
+            st.metric("Dataset Shape", f"{st.session_state.df.shape[0]} x {st.session_state.df.shape[1]}")
         with col2:
             st.metric("Target Column", chosen_target)
         with col3:
-            st.metric("Features", df.shape[1] - 1)
+            st.metric("Features", st.session_state.df.shape[1] - 1)
         
         if st.button('Run Modelling ▶️'):
             with st.spinner('Training models... This may take a few minutes.'):
                 try:
                     # Preprocess data
-                    X, y, le_dict = preprocess_data(df, chosen_target)
+                    X, y, le_dict = preprocess_data(st.session_state.df, chosen_target)
                     
                     # Display preprocessing info
                     st.subheader("Data Preprocessing Summary")
@@ -200,8 +213,8 @@ if choice == "Modelling 🤖":
                     else:
                         best_model.fit(X_train, y_train)
                     
-                    # Save model and preprocessing objects
-                    model_data = {
+                    # Save model and preprocessing objects in session state
+                    st.session_state.model_data = {
                         'model': best_model,
                         'scaler': scaler if best_model_name in scale_models else None,
                         'label_encoders': le_dict,
@@ -211,12 +224,9 @@ if choice == "Modelling 🤖":
                         'performance': best_r2
                     }
                     
-                    with open('best_model.pkl', 'wb') as f:
-                        pickle.dump(model_data, f)
-                    
-                    st.session_state['model_trained'] = True
-                    st.session_state['model_name'] = best_model_name
-                    st.session_state['model_r2'] = best_r2
+                    st.session_state.model_trained = True
+                    st.session_state.model_name = best_model_name
+                    st.session_state.model_r2 = best_r2
                     
                 except Exception as e:
                     st.error(f"Error during modelling: {str(e)}")
@@ -227,16 +237,15 @@ if choice == "Modelling 🤖":
 if choice == "Download 💾":
     st.title("Download Trained Model 💾")
     
-    if os.path.exists('best_model.pkl'):
-        # Show model info if available
-        if 'model_trained' in st.session_state:
+    if st.session_state.model_data is not None:
+        # Show model info
+        if st.session_state.model_trained:
             st.success(f"✅ Model Ready: {st.session_state.get('model_name', 'Unknown')}")
             st.info(f"📈 Performance (R²): {st.session_state.get('model_r2', 'Unknown')}")
         
-        # Load and display model info
+        # Display model info
         try:
-            with open('best_model.pkl', 'rb') as f:
-                model_data = pickle.load(f)
+            model_data = st.session_state.model_data
             
             st.subheader("Model Information")
             col1, col2 = st.columns(2)
@@ -250,16 +259,24 @@ if choice == "Download 💾":
         except Exception as e:
             st.warning(f"Could not load model info: {str(e)}")
         
-        # Download button
-        with open('best_model.pkl', 'rb') as f:
+        # Create download button with model data
+        try:
+            # Serialize model data to bytes
+            buffer = BytesIO()
+            pickle.dump(st.session_state.model_data, buffer)
+            buffer.seek(0)
+            
             st.download_button(
                 label='Download Model 📥',
-                data=f.read(),
+                data=buffer.getvalue(),
                 file_name="best_model.pkl",
                 mime="application/octet-stream"
             )
-        
-        st.info("💡 The downloaded model includes the trained model, preprocessors, and metadata needed for predictions.")
+            
+            st.info("💡 The downloaded model includes the trained model, preprocessors, and metadata needed for predictions.")
+            
+        except Exception as e:
+            st.error(f"Error preparing model for download: {str(e)}")
         
     else:
         st.warning("⚠️ No saved model found. Train a model first.")
